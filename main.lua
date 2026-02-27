@@ -16,14 +16,18 @@ local BUBBLE_SIZE = BUBBLE_RADIUS * 2 + BUBBLE_SPACING
 local BOARD_START_X = (VIRTUAL_WIDTH - (GRID_COLS * BUBBLE_SIZE - BUBBLE_SPACING)) / 2
 local BOARD_START_Y = 150
 
+-- 폰트
+local fontRegular = nil
+local fontBold = nil
+
 -- 게임 상태
 local grid = {}
 local round = 0
-local roundDelay = 0        -- 라운드 전환 딜레이 타이머
+local roundDelay = 0              -- 라운드 전환 딜레이 타이머
 local ROUND_DELAY_TIME = 0.5
-local popupPhase = false     -- 팝업(리셋) 애니메이션 중인지
-local PRESS_ANIM_SPEED = 1 / 0.15   -- 0.15초에 0→1
-local POPUP_ANIM_SPEED = 1 / 0.2    -- 0.2초에 1→0
+local popupPhase = false          -- 팝업(리셋) 애니메이션 중인지
+local PRESS_ANIM_SPEED = 1 / 0.15 -- 0.15초에 0→1
+local POPUP_ANIM_SPEED = 1 / 0.2  -- 0.2초에 1→0
 
 local function updateScale()
     local windowW, windowH = love.graphics.getDimensions()
@@ -104,6 +108,12 @@ end
 
 function love.load()
     love.graphics.setBackgroundColor(0.15, 0.15, 0.2)
+
+    -- Pretendard 폰트 로드
+    fontRegular = love.graphics.newFont("assets/fonts/Pretendard-Regular.otf", 18)
+    fontBold = love.graphics.newFont("assets/fonts/Pretendard-Bold.otf", 24)
+    love.graphics.setFont(fontRegular)
+
     updateScale()
     initGrid()
     startRound()
@@ -136,8 +146,13 @@ function love.update(dt)
     if roundDelay > 0 then
         roundDelay = roundDelay - dt
         if roundDelay <= 0 then
-            -- 팝업 애니메이션 시작
+            -- 팝업 애니메이션 시작: pressed를 풀어서 역방향 애니메이션 가능하게
             popupPhase = true
+            for row = 1, GRID_ROWS do
+                for col = 1, GRID_COLS do
+                    grid[row][col].pressed = false
+                end
+            end
         end
         return
     end
@@ -180,7 +195,7 @@ function love.mousepressed(screenX, screenY, button)
             local b = grid[row][col]
             if b.lit then
                 local cx, cy = getBubbleCenter(row, col)
-                local dist = math.sqrt((vx - cx)^2 + (vy - cy)^2)
+                local dist = math.sqrt((vx - cx) ^ 2 + (vy - cy) ^ 2)
                 if dist <= BUBBLE_RADIUS then
                     b.lit = false
                     b.pressed = true
@@ -261,24 +276,25 @@ function love.draw()
     end
 
     -- UI: 라운드 표시
+    love.graphics.setFont(fontBold)
     love.graphics.setColor(1, 1, 1)
-    local font = love.graphics.getFont()
     local roundText = string.format("Round %d", round)
-    local tw = font:getWidth(roundText)
+    local tw = fontBold:getWidth(roundText)
     love.graphics.print(roundText, (VIRTUAL_WIDTH - tw) / 2, 50)
 
     -- UI: 남은 버블 수
+    love.graphics.setFont(fontRegular)
     local litCount = countLit()
     if litCount > 0 then
         love.graphics.setColor(1, 0.85, 0.3)
         local litText = string.format("남은 버블: %d", litCount)
-        local lw = font:getWidth(litText)
-        love.graphics.print(litText, (VIRTUAL_WIDTH - lw) / 2, 80)
+        local lw = fontRegular:getWidth(litText)
+        love.graphics.print(litText, (VIRTUAL_WIDTH - lw) / 2, 85)
     elseif roundDelay > 0 or popupPhase then
         love.graphics.setColor(0.3, 1, 0.5)
         local clearText = "Clear!"
-        local cw = font:getWidth(clearText)
-        love.graphics.print(clearText, (VIRTUAL_WIDTH - cw) / 2, 80)
+        local cw = fontRegular:getWidth(clearText)
+        love.graphics.print(clearText, (VIRTUAL_WIDTH - cw) / 2, 85)
     end
 
     -- 디버그 정보
