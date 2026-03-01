@@ -23,6 +23,10 @@ local winActive = false
 local winTimer = 0
 local WIN_DISPLAY_TIME = 3
 
+-- Lose delay (wait for effects to finish)
+local loseDelay = 0
+local LOSE_DELAY_TIME = 0.5
+
 function Round.enter()
     GameState.round = GameState.round + 1
     targetScore = GameState.getTargetScore()
@@ -37,6 +41,7 @@ function Round.enter()
     countdownActive = true
     winActive = false
     winTimer = 0
+    loseDelay = 0
 
     Board.init()
     Board.refill(GameState.getDeckAsList())
@@ -56,6 +61,7 @@ function Round.update(dt)
     -- Win overlay timer
     if winActive then
         winTimer = winTimer - dt
+        Board.update(dt, popupPhase)
         if winTimer <= 0 then
             if GameState.round >= #GameState.targetScores then
                 SceneManager.switch("victory")
@@ -66,12 +72,22 @@ function Round.update(dt)
         return
     end
 
+    -- Lose delay (let effects finish before switching)
+    if loseDelay > 0 then
+        loseDelay = loseDelay - dt
+        Board.update(dt, popupPhase)
+        if loseDelay <= 0 then
+            SceneManager.switch("result", false, score)
+        end
+        return
+    end
+
     -- Timer countdown
     if timer > 0 and not popupPhase and roundDelay <= 0 then
         timer = timer - dt
         if timer <= 0 then
             timer = 0
-            SceneManager.switch("result", false, score)
+            loseDelay = LOSE_DELAY_TIME
             return
         end
     end
@@ -121,10 +137,11 @@ local function handlePress(sx, sy)
     if roundDelay > 0 or popupPhase then return end
     if timer <= 0 then return end
 
-    local color = Board.handlePress(sx, sy)
+    local color, cx, cy = Board.handlePress(sx, sy)
     if color then
         local result = Combo.onPop(color)
         score = score + result.points
+        Board.triggerFeedback(cx, cy, color, result.comboCount or 0)
         if result.comboType then
             lastCombo = result
             comboDisplayTimer = 1.5

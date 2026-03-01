@@ -60,6 +60,12 @@ function Board.init()
             grid[row][col] = { lit = false, pressed = false, pressAnim = 0, color = nil }
         end
     end
+    -- Clear all effects from previous round
+    particles = {}
+    flashes = {}
+    shakeTimer = 0
+    shakeOffsetX = 0
+    shakeOffsetY = 0
     Board.updateLayout()
 end
 
@@ -126,7 +132,7 @@ local function getBubbleCenter(row, col)
     return cx, cy
 end
 
-local function spawnParticles(cx, cy, color)
+local function spawnParticles(cx, cy, color, intensity)
     local c = BUBBLE_COLORS[color]
     local pr, pg, pb
     if c then
@@ -134,9 +140,12 @@ local function spawnParticles(cx, cy, color)
     else
         pr, pg, pb = 1, 1, 1
     end
-    for i = 1, 8 do
-        local angle = (i / 8) * math.pi * 2 + love.math.random() * 0.5
-        local speed = 120 + love.math.random() * 100
+    local count = 8 + intensity
+    local speedMul = 1 + intensity * 0.1
+    local sizeMul = 1 + intensity * 0.05
+    for i = 1, count do
+        local angle = (i / count) * math.pi * 2 + love.math.random() * 0.5
+        local speed = (120 + love.math.random() * 100) * speedMul
         table.insert(particles, {
             x = cx, y = cy,
             vx = math.cos(angle) * speed,
@@ -144,17 +153,19 @@ local function spawnParticles(cx, cy, color)
             life = 0.35 + love.math.random() * 0.15,
             maxLife = 0.5,
             r = pr, g = pg, b = pb,
-            size = bubbleRadius * (0.1 + love.math.random() * 0.12),
+            size = bubbleRadius * (0.1 + love.math.random() * 0.12) * sizeMul,
         })
     end
 end
 
-local function spawnFlash(cx, cy)
+local function spawnFlash(cx, cy, intensity)
+    local scale = 1 + intensity * 0.05
+    local duration = 0.12 + intensity * 0.005
     table.insert(flashes, {
         x = cx, y = cy,
-        life = 0.12,
-        maxLife = 0.12,
-        radius = bubbleRadius,
+        life = duration,
+        maxLife = duration,
+        radius = bubbleRadius * scale,
     })
 end
 
@@ -177,17 +188,23 @@ function Board.handlePress(sx, sy)
                 if dist <= bubbleRadius then
                     b.lit = false
                     b.pressed = true
-                    b.pressAnim = -0.3 -- start with "punch" (negative = enlarged)
-                    love.system.vibrate(0.05)
-                    triggerShake(3, 0.08)
-                    spawnParticles(cx, cy, b.color)
-                    spawnFlash(cx, cy)
-                    return b.color
+                    b.pressAnim = -0.3
+                    return b.color, cx, cy
                 end
             end
         end
     end
     return nil
+end
+
+function Board.triggerFeedback(cx, cy, color, comboCount)
+    local intensity = math.min(comboCount, 10)
+    local shakeMag = 3 + intensity * 0.5
+    local shakeDur = 0.08 + intensity * 0.005
+    love.system.vibrate(0.05)
+    triggerShake(shakeMag, shakeDur)
+    spawnParticles(cx, cy, color, intensity)
+    spawnFlash(cx, cy, intensity)
 end
 
 function Board.update(dt, popupPhase)
