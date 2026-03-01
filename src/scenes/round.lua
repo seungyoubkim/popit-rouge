@@ -144,6 +144,11 @@ end
 function Round.draw()
     local sw, sh = love.graphics.getDimensions()
 
+    -- Apply screen shake offset
+    local sx, sy = Board.getShakeOffset()
+    love.graphics.push()
+    love.graphics.translate(sx, sy)
+
     -- Pre-round countdown overlay
     if countdownActive then
         Board.draw()
@@ -165,6 +170,7 @@ function Round.draw()
         local readyText = "게임을 시작합니다"
         local rw = Fonts.regular:getWidth(readyText)
         love.graphics.print(readyText, (sw - rw) / 2, sh * 0.45)
+        love.graphics.pop()
         return
     end
 
@@ -205,6 +211,7 @@ function Round.draw()
 
     -- Board
     Board.draw()
+    Board.drawParticlesAndFlashes()
 
     -- Turn clear text
     if Board.countLit() == 0 and (roundDelay > 0 or popupPhase) then
@@ -232,6 +239,8 @@ function Round.draw()
         local sw2 = Fonts.regular:getWidth(sText)
         love.graphics.print(sText, (sw - sw2) / 2, sh * 0.45)
     end
+
+    love.graphics.pop()
 end
 
 function Round.resize(w, h)

@@ -4,7 +4,7 @@ local GRID_COLS = 5
 local GRID_ROWS = 5
 local BOARD_PADDING = 40
 local BUBBLE_SPACING_RATIO = 0.14
-local PRESS_ANIM_SPEED = 1 / 0.15
+local PRESS_ANIM_SPEED = 1 / 0.12
 local POPUP_ANIM_SPEED = 1 / 0.2
 
 local grid = {}
@@ -14,6 +14,18 @@ local boardStartX = 0
 local boardStartY = 0
 local screenW = 0
 local screenH = 0
+
+-- Screen shake
+local shakeTimer = 0
+local shakeMagnitude = 0
+local shakeOffsetX = 0
+local shakeOffsetY = 0
+
+-- Particles
+local particles = {}
+
+-- Flash effects
+local flashes = {}
 
 -- Color definitions for drawing
 local BUBBLE_COLORS = {
@@ -114,6 +126,47 @@ local function getBubbleCenter(row, col)
     return cx, cy
 end
 
+local function spawnParticles(cx, cy, color)
+    local c = BUBBLE_COLORS[color]
+    local pr, pg, pb
+    if c then
+        pr, pg, pb = c.main[1], c.main[2], c.main[3]
+    else
+        pr, pg, pb = 1, 1, 1
+    end
+    for i = 1, 8 do
+        local angle = (i / 8) * math.pi * 2 + love.math.random() * 0.5
+        local speed = 120 + love.math.random() * 100
+        table.insert(particles, {
+            x = cx, y = cy,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            life = 0.35 + love.math.random() * 0.15,
+            maxLife = 0.5,
+            r = pr, g = pg, b = pb,
+            size = bubbleRadius * (0.1 + love.math.random() * 0.12),
+        })
+    end
+end
+
+local function spawnFlash(cx, cy)
+    table.insert(flashes, {
+        x = cx, y = cy,
+        life = 0.12,
+        maxLife = 0.12,
+        radius = bubbleRadius,
+    })
+end
+
+local function triggerShake(magnitude, duration)
+    shakeMagnitude = magnitude
+    shakeTimer = duration
+end
+
+function Board.getShakeOffset()
+    return shakeOffsetX, shakeOffsetY
+end
+
 function Board.handlePress(sx, sy)
     for row = 1, GRID_ROWS do
         for col = 1, GRID_COLS do
@@ -124,7 +177,11 @@ function Board.handlePress(sx, sy)
                 if dist <= bubbleRadius then
                     b.lit = false
                     b.pressed = true
+                    b.pressAnim = -0.3 -- start with "punch" (negative = enlarged)
                     love.system.vibrate(0.05)
+                    triggerShake(3, 0.08)
+                    spawnParticles(cx, cy, b.color)
+                    spawnFlash(cx, cy)
                     return b.color
                 end
             end
@@ -134,6 +191,7 @@ function Board.handlePress(sx, sy)
 end
 
 function Board.update(dt, popupPhase)
+    -- Update bubble animations
     for row = 1, GRID_ROWS do
         for col = 1, GRID_COLS do
             local b = grid[row][col]
@@ -146,6 +204,41 @@ function Board.update(dt, popupPhase)
                     b.pressAnim = math.max(0, b.pressAnim - dt * POPUP_ANIM_SPEED)
                 end
             end
+        end
+    end
+
+    -- Update screen shake
+    if shakeTimer > 0 then
+        shakeTimer = shakeTimer - dt
+        local intensity = shakeMagnitude * (shakeTimer / 0.08)
+        shakeOffsetX = (love.math.random() * 2 - 1) * intensity
+        shakeOffsetY = (love.math.random() * 2 - 1) * intensity
+        if shakeTimer <= 0 then
+            shakeOffsetX = 0
+            shakeOffsetY = 0
+        end
+    end
+
+    -- Update particles
+    for i = #particles, 1, -1 do
+        local p = particles[i]
+        p.life = p.life - dt
+        if p.life <= 0 then
+            table.remove(particles, i)
+        else
+            p.x = p.x + p.vx * dt
+            p.y = p.y + p.vy * dt
+            p.vy = p.vy + 300 * dt -- gravity
+            p.vx = p.vx * 0.96      -- drag
+        end
+    end
+
+    -- Update flashes
+    for i = #flashes, 1, -1 do
+        local f = flashes[i]
+        f.life = f.life - dt
+        if f.life <= 0 then
+            table.remove(flashes, i)
         end
     end
 end
@@ -215,11 +308,34 @@ function Board.draw()
     end
 end
 
+function Board.drawParticlesAndFlashes()
+    -- Draw flashes (additive white burst)
+    for _, f in ipairs(flashes) do
+        local alpha = f.life / f.maxLife
+        local radius = f.radius * (1 + (1 - alpha) * 0.5)
+        love.graphics.setColor(1, 1, 1, alpha * 0.6)
+        love.graphics.circle("fill", f.x, f.y, radius)
+    end
+
+    -- Draw particles
+    for _, p in ipairs(particles) do
+        local alpha = p.life / p.maxLife
+        love.graphics.setColor(p.r, p.g, p.b, alpha)
+        love.graphics.circle("fill", p.x, p.y, p.size * alpha)
+    end
+end
+
 function Board.drawBubble(row, col)
     local b = grid[row][col]
     local cx, cy = getBubbleCenter(row, col)
     local anim = b.pressAnim
-    local s = 1 - anim * 0.15
+    -- Punch effect: negative anim = enlarge, positive = shrink
+    local s
+    if anim < 0 then
+        s = 1 - anim * 0.4 -- enlarge (anim is negative, so this grows)
+    else
+        s = 1 - anim * 0.15
+    end
     local r = bubbleRadius * s
 
     if b.lit then
@@ -249,11 +365,12 @@ function Board.drawBubble(row, col)
         end
     elseif b.pressed or anim > 0 then
         -- Pressed bubble
+        local a = math.max(0, anim)
         love.graphics.setColor(0.18, 0.18, 0.25)
         love.graphics.circle("fill", cx, cy, r)
-        love.graphics.setColor(0.12, 0.12, 0.18, anim * 0.8)
+        love.graphics.setColor(0.12, 0.12, 0.18, a * 0.8)
         love.graphics.circle("fill", cx, cy - r * 0.1, r * 0.9)
-        love.graphics.setColor(0.25, 0.25, 0.35, anim * 0.5)
+        love.graphics.setColor(0.25, 0.25, 0.35, a * 0.5)
         love.graphics.circle("fill", cx, cy + r * 0.15, r * 0.6)
     else
         -- Default bubble (up state)
