@@ -17,9 +17,9 @@ local screenH = 0
 
 -- Color definitions for drawing
 local BUBBLE_COLORS = {
-    red    = { main = {0.9, 0.25, 0.2},  highlight = {1.0, 0.5, 0.45},  shadow = {0.7, 0.15, 0.1} },
-    blue   = { main = {0.2, 0.45, 0.9},  highlight = {0.45, 0.65, 1.0}, shadow = {0.1, 0.3, 0.7} },
-    yellow = { main = {1.0, 0.75, 0.2},  highlight = {1.0, 0.9, 0.5},   shadow = {0.8, 0.55, 0.1} },
+    red     = { main = { 0.9, 0.25, 0.2 }, highlight = { 1.0, 0.5, 0.45 }, shadow = { 0.7, 0.15, 0.1 } },
+    blue    = { main = { 0.2, 0.45, 0.9 }, highlight = { 0.45, 0.65, 1.0 }, shadow = { 0.1, 0.3, 0.7 } },
+    yellow  = { main = { 1.0, 0.75, 0.2 }, highlight = { 1.0, 0.9, 0.5 }, shadow = { 0.8, 0.55, 0.1 } },
     rainbow = nil, -- handled specially
 }
 
@@ -124,6 +124,7 @@ function Board.handlePress(sx, sy)
                 if dist <= bubbleRadius then
                     b.lit = false
                     b.pressed = true
+                    love.system.vibrate(0.05)
                     return b.color
                 end
             end

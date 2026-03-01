@@ -3,7 +3,7 @@ local GameState = {}
 GameState.deck = { red = 1, blue = 1, yellow = 1, rainbow = 0 }
 GameState.round = 0
 GameState.score = 0
-GameState.targetScores = { 50, 80, 120, 180, 250, 350, 500, 700, 950, 1300 }
+GameState.targetScores = { 50, 150, 300, 500, 750, 1000, 1500, 2000, 3500, 5000 }
 
 function GameState.reset()
     GameState.deck = { red = 1, blue = 1, yellow = 1, rainbow = 0 }
